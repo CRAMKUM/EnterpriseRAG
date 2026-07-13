@@ -219,10 +219,13 @@ Respond in JSON format:
             "success": True
         }
 
-    def process_query(self, query: str, context: str = "", mmkg_available: bool = False) -> Dict[str, Any]:
+    def process_query(self, query: str, context: Any = "", mmkg_available: bool = False) -> Dict[str, Any]:
         """Process query end-to-end."""
         try:
-            ctx = {"conversation_context": context, "mmkg_available": mmkg_available}
+            if isinstance(context, dict):
+                ctx = {**context, "mmkg_available": mmkg_available}
+            else:
+                ctx = {"conversation_context": context, "mmkg_available": mmkg_available}
             result = self.execute_request(query, context=ctx)
 
             tool_calls = []

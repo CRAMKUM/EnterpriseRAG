@@ -43,6 +43,12 @@ from components.mmkg_status import MMKGStatusComponent
 
 logger = get_logger(__name__)
 
+import threading
+
+# Global dict to track background building tasks
+if "BACKGROUND_BUILDS" not in globals():
+    BACKGROUND_BUILDS = {}
+
 # CSS Styling
 st.markdown("""
 <style>
@@ -141,6 +147,32 @@ def main():
         st.error("Failed to initialize application. Please check logs.")
         return
 
+    # Check background build status and sync with session state (non-blocking)
+    session_id = st.session_state.session_id
+    if session_id in BACKGROUND_BUILDS:
+        task = BACKGROUND_BUILDS[session_id]
+        if task["status"] == "building":
+            st.session_state.mmkg_status = "building"
+            # Only trigger Streamlit rerun if the progress stage changes, to avoid lag and allow chat interaction
+            current_stage = st.session_state.processing_status.get("stage")
+            if current_stage != task["stage"]:
+                st.session_state.processing_status = {
+                    "stage": task["stage"],
+                    "progress": task["progress"],
+                    "total_stages": task["total_stages"]
+                }
+                st.rerun()
+        elif task["status"] == "ready":
+            st.session_state.mmkg_status = "ready"
+            st.session_state.graph_stats = task["stats"]
+            BACKGROUND_BUILDS.pop(session_id, None)
+            st.rerun()
+        elif task["status"] == "failed":
+            st.session_state.mmkg_status = "idle"
+            st.error(f"❌ Background Knowledge Graph construction failed: {task['error']}")
+            BACKGROUND_BUILDS.pop(session_id, None)
+            st.rerun()
+
     if st.session_state.user_id is None:
         st.session_state.user_id = components["session_manager"].get_or_create_user_id()
 
@@ -236,40 +268,71 @@ def handle_file_upload(uploaded_file, components):
     # Save absolute path to session state so tools can access it
     st.session_state.current_document_path = str(temp_file)
 
-    try:
-        update_progress("Parsing document structure...", 1)
-        result = components["doc_processor"].process_document(str(temp_file))
+    session_id = st.session_state.session_id
+    user_id = st.session_state.user_id
 
-        update_progress("Processing images (deblurring)...", 2)
-        update_progress("Interpreting charts and diagrams...", 3)
+    # Initialize background task state
+    BACKGROUND_BUILDS[session_id] = {
+        "stage": "Uploading document...",
+        "progress": 0,
+        "total_stages": 7,
+        "status": "building",
+        "stats": None,
+        "error": None
+    }
 
-        update_progress("Extracting entities (MegaRAG)...", 4)
-        mmkg_data = components["mmkg_builder"].build_mmkg(result["pages"])
+    # Define the worker thread function
+    def bg_worker():
+        try:
+            # Stage 1: Parse document structure
+            BACKGROUND_BUILDS[session_id].update({"stage": "Parsing document structure...", "progress": 1})
+            result = components["doc_processor"].process_document(str(temp_file))
 
-        update_progress("Building relationships...", 5)
-        update_progress("Inserting into knowledge graph...", 6)
+            # Stage 2-3: Deblur and interpret (already done in process_document, updating stages)
+            BACKGROUND_BUILDS[session_id].update({"stage": "Processing images (deblurring)...", "progress": 2})
+            BACKGROUND_BUILDS[session_id].update({"stage": "Interpreting charts and diagrams...", "progress": 3})
 
-        if components["graph_manager"]:
-            components["graph_manager"].insert_entities(mmkg_data["entities"])
-            components["graph_manager"].insert_relationships(mmkg_data["relationships"])
+            # Stage 4-5: Extract entities and relationships (MegaRAG)
+            BACKGROUND_BUILDS[session_id].update({"stage": "Extracting entities (MegaRAG)...", "progress": 4})
+            mmkg_data = components["mmkg_builder"].build_mmkg(result["pages"])
+            BACKGROUND_BUILDS[session_id].update({"stage": "Building relationships...", "progress": 5})
 
-        update_progress("MMKG build complete!", 7)
-        st.session_state.mmkg_status = "ready"
-        st.session_state.graph_stats = mmkg_data["metadata"]
-        st.success(f"MMKG built: {mmkg_data['metadata']['entity_count']} entities, {mmkg_data['metadata']['relationship_count']} relationships")
+            # Stage 6: Insert into knowledge graph
+            BACKGROUND_BUILDS[session_id].update({"stage": "Inserting into knowledge graph...", "progress": 6})
+            if components["graph_manager"]:
+                components["graph_manager"].insert_entities(mmkg_data["entities"])
+                components["graph_manager"].insert_relationships(mmkg_data["relationships"])
 
-        st.session_state.processing_status = {
-            "stage": "",
-            "progress": 0,
-            "total_stages": 7
-        }
-    except Exception as e:
-        logger.error(f"Processing failed: {e}")
-        st.error(f"Processing failed: {e}")
-        st.session_state.mmkg_status = "idle"
-    finally:
-        # Keep the file on disk so manual tools (like Tesseract and Unstructured) can run on it later
-        pass
+            # Stage 7: Complete
+            BACKGROUND_BUILDS[session_id].update({
+                "stage": "MMKG build complete!",
+                "progress": 7,
+                "status": "ready",
+                "stats": mmkg_data["metadata"]
+            })
+
+            # Save state persistently to GCS
+            try:
+                components["session_manager"].save_session_state(user_id, {
+                    "mmkg_status": "ready",
+                    "current_document": uploaded_file.name,
+                    "graph_stats": mmkg_data["metadata"]
+                })
+            except Exception as se:
+                logger.error(f"Failed to save session state to GCS in background thread: {se}")
+
+        except Exception as e:
+            logger.error(f"Background Knowledge Graph building failed: {e}")
+            BACKGROUND_BUILDS[session_id].update({
+                "status": "failed",
+                "error": str(e)
+            })
+
+    # Start the daemon thread to run in parallel
+    t = threading.Thread(target=bg_worker, daemon=True)
+    t.start()
+
+    st.success("📂 Document uploaded successfully! Processing Multimodal Knowledge Graph in the background. You can now chat and run manual tools immediately!")
 
 def update_progress(stage: str, progress: int):
     st.session_state.processing_status = {

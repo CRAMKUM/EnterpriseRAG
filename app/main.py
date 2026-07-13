@@ -181,6 +181,20 @@ def main():
             st.session_state.user_id
         )
 
+    # Load persistent session state from GCS on page boot (non-blocking recovery)
+    if st.session_state.current_document is None:
+        try:
+            state_data = components["session_manager"].load_session_state(st.session_state.user_id)
+            if state_data:
+                st.session_state.mmkg_status = state_data.get("mmkg_status", "idle")
+                st.session_state.current_document = state_data.get("current_document")
+                st.session_state.graph_stats = state_data.get("graph_stats", {})
+                if st.session_state.current_document:
+                    st.session_state.current_document_path = f"/tmp/enterprise_rag/{st.session_state.current_document}"
+                logger.info(f"Persistent session state recovered from GCS: {st.session_state.current_document}")
+        except Exception as se_err:
+            logger.error(f"Failed to recover persistent session state: {se_err}")
+
     st.markdown('<h1 class="main-header">🧠 Enterprise RAG</h1>', unsafe_allow_html=True)
     st.markdown('<p class="sub-header">Multimodal Knowledge Graph from Documents</p>', unsafe_allow_html=True)
 

@@ -287,7 +287,22 @@ class Orchestrator:
                             self.logger.info(f"Fallback: automatically supplied {name}={current_doc_path} for {tool_name}")
 
                 self.logger.info(f"DEBUG: final valid_params={valid_params}")
-                result = tool.execute(**valid_params)
+                
+                from pathlib import Path
+
+                file_path = (
+                    valid_params.get("image_path")
+                    or valid_params.get("document_path")
+                )
+
+                if tool_name == "tesseract" and file_path:
+                    if Path(file_path).suffix.lower() == ".pdf":
+                        self.logger.info("Routing to tesseract.extract_from_pdf")
+                        result = tool.extract_from_pdf(file_path)
+                    else:
+                        result = tool.execute(**valid_params)
+                else:
+                    result = tool.execute(**valid_params)
 
                 return {
                     "tool_used": tool_name,

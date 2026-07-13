@@ -5,7 +5,7 @@ from typing import Dict, Any, Optional
 from utils.logger import get_logger
 from utils.exceptions import ToolExecutionError
 from config.config_loader import get_config_loader
-from tools import OpenCVTool, TesseractTool, UnstructuredTool, GemmaTool
+from tools import OpenCVTool, TesseractTool, UnstructuredTool, GemmaTool, PyMuPDFTool
 from pydantic import BaseModel, Field
 
 logger = get_logger(__name__)
@@ -71,9 +71,50 @@ class Orchestrator:
             "opencv": OpenCVTool(tool_config.get("opencv", {})),
             "tesseract": TesseractTool(tool_config.get("tesseract", {})),
             "unstructured_io": UnstructuredTool(tool_config.get("unstructured_io", {})),
-            "gemma": GemmaTool(tool_config.get("gemma", {}))
+            "gemma": GemmaTool(tool_config.get("gemma", {})),
+            "pymupdf": PyMuPDFTool(tool_config.get("pymupdf", {}))
         }
         self.logger.info(f"Initialized {len(self.tools)} tools")
+
+    def detect_pdf_type(self, pdf_path: str, sample_pages: int = 3) -> str:
+        """
+        Classify PDF into: 'native' or 'scanned' using PyMuPDF.
+        """
+        try:
+            import fitz  # PyMuPDF
+
+            doc = fitz.open(pdf_path)
+
+            text_chars = 0
+            image_pages = 0
+
+            pages_to_check = min(sample_pages, len(doc))
+
+            for i in range(pages_to_check):
+                page = doc[i]
+
+                text = page.get_text().strip()
+                images = page.get_images()
+
+                if text:
+                    text_chars += len(text)
+
+                if images and not text:
+                    image_pages += 1
+
+            doc.close()
+
+            # Heuristic decision
+            if text_chars > 50:
+                return "native"
+            elif image_pages == pages_to_check:
+                return "scanned"
+            else:
+                # Mixed case -> treat as scanned (safer fallback)
+                return "scanned"
+        except Exception as e:
+            self.logger.warning(f"PDF type detection failed for {pdf_path}: {e}")
+            return "scanned"  # Safer fallback
 
     def route_request(self, user_request: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
@@ -82,10 +123,29 @@ class Orchestrator:
         try:
             self.logger.info(f"Routing request: {user_request[:100]}...")
 
+            # Inject PDF Auto-Detection into Context (DILIGENT STEP 2)
+            from pathlib import Path
+            pdf_type = None
+            file_path = context.get("current_document_path") if isinstance(context, dict) else None
+
+            if file_path and Path(file_path).suffix.lower() == ".pdf":
+                try:
+                    pdf_type = self.detect_pdf_type(file_path)
+                    self.logger.info(f"PDF DETECTED TYPE: {pdf_type}")
+                except Exception as e:
+                    self.logger.warning(f"PDF detection failed: {e}")
+
+            # Build enriched routing context dictionary
+            enriched_context = {
+                **(context or {}),
+                "pdf_type": pdf_type
+            }
+
             system_prompts = self.config_loader.get_system_prompts()
             system_instruction = system_prompts.get("orchestrator", "")
 
-            routing_prompt = self._build_routing_prompt(user_request, context)
+            # Build enriched prompt with PDF type context (DILIGENT STEP 3)
+            routing_prompt = self._build_routing_prompt(user_request, enriched_context)
 
             response = self.client.models.generate_content(
                 model=self.model_name,
@@ -100,7 +160,31 @@ class Orchestrator:
             )
 
             routing_decision = self._parse_routing_response(response.text)
-            self.logger.info(f"Routed to: {routing_decision['tool']}")
+            self.logger.info(f"LLM Routed to: {routing_decision.get('tool')}")
+
+            # Hard override / Enforce correct tool selection deterministically (DILIGENT STEP 4)
+            tool_name = routing_decision.get("tool")
+            params = routing_decision.get("parameters", {})
+
+            if file_path:
+                suffix = Path(file_path).suffix.lower()
+                if suffix == ".pdf":
+                    # Determine target based on text-extraction request
+                    is_text_extraction_query = any(k in user_request.lower() for k in ["text", "read", "extract", "summarize", "summary"])
+                    if is_text_extraction_query:
+                        if pdf_type == "native" and tool_name != "pymupdf":
+                            self.logger.info("Enforcing deterministic tool selection: native PDF -> pymupdf")
+                            tool_name = "pymupdf"
+                            params = {"document_path": file_path}
+                        elif pdf_type == "scanned" and tool_name != "tesseract":
+                            self.logger.info("Enforcing deterministic tool selection: scanned PDF -> tesseract")
+                            tool_name = "tesseract"
+                            params = {"image_path": file_path}
+
+            routing_decision["tool"] = tool_name
+            routing_decision["parameters"] = params
+
+            self.logger.info(f"Final Routed to: {routing_decision['tool']}")
             return routing_decision
         except Exception as e:
             self.logger.error(f"Request routing failed: {e}")
@@ -220,33 +304,54 @@ class Orchestrator:
 
     def _build_routing_prompt(self, user_request: str, context: Optional[Dict[str, Any]] = None) -> str:
         """Build prompt for routing decision."""
-        context_str = json.dumps(context, indent=2) if context else "None"
         current_doc_path = context.get("current_document_path") if isinstance(context, dict) else None
+        pdf_type = context.get("pdf_type") if isinstance(context, dict) else None
 
-        doc_path_hint = ""
-        if current_doc_path:
-            doc_path_hint = f"\n\nCRITICAL DIRECTIVE: An active document is currently uploaded at '{current_doc_path}'. " \
-                            f"If the selected tool requires a path (e.g. 'image_path' for 'tesseract'/'opencv'/'gemma', " \
-                            f"or 'document_path' for 'unstructured_io'), you MUST supply '{current_doc_path}' as that parameter's exact value."
+        return f"""You are a tool-calling agent.
 
-        return f"""Analyze this user request and route it to the most appropriate tool.
+You MUST respond with valid JSON only matching the provided schema.
 
-Available tools:
-1. **opencv** - Deblur images (FREE)
-2. **tesseract** - Extract text via OCR (FREE)
-3. **unstructured_io** - Parse documents, extract tables (LOW cost)
-4. **gemma** - Interpret images using small VLM (LOW cost)
-5. **graph_rag** - Answer complex questions using knowledge graph (HIGH cost)
+Schema:
+{{
+  "tool": "<tool_name>",
+  "reasoning": "<reasoning_text>",
+  "parameters": {{
+    "<param_name>": "<value>"
+  }}
+}}
+
+DOCUMENT CONTEXT:
+- Path: {current_doc_path}
+- PDF type: {pdf_type}
+
+TOOL SELECTION RULES:
+
+1. If PDF type is "native"
+   AND user asks to extract/read/summarize text
+   → USE: pymupdf (parameters: 'document_path')
+
+2. If PDF type is "scanned"
+   AND user asks to extract/read/summarize text
+   → USE: tesseract (parameters: 'image_path')
+
+3. If file is an image
+   → USE: tesseract (parameters: 'image_path')
+
+4. If user wants structured extraction (e.g. tables)
+   → USE: unstructured_io (parameters: 'document_path')
+
+5. If user wants deblurring
+   → USE: opencv (parameters: 'image_path')
+
+6. If user wants image interpretation/VLM detail
+   → USE: gemma (parameters: 'image_path')
+
+RULES:
+- ALWAYS include required parameters
+- NEVER output anything except JSON matching the schema
+- Supply the exact Path '{current_doc_path}' as the value of 'document_path' or 'image_path' parameters if required by the chosen tool!
 
 User Request: {user_request}
-Context: {context_str}{doc_path_hint}
-
-Respond in JSON format:
-{{
-    "tool": "tool_name",
-    "reasoning": "why this tool was chosen",
-    "parameters": {{"param1": "value1"}}
-}}
 """
 
     def _parse_routing_response(self, response_text: str) -> Dict[str, Any]:
@@ -268,7 +373,11 @@ Respond in JSON format:
 
         if "deblur" in request_lower or "blur" in request_lower:
             return {"tool": "opencv", "reasoning": "Fallback: blur", "parameters": img_params}
-        elif "extract text" in request_lower or "ocr" in request_lower:
+        elif "extract text" in request_lower or "ocr" in request_lower or "read" in request_lower or "summarize" in request_lower or "summary" in request_lower:
+            if current_doc_path and Path(current_doc_path).suffix.lower() == ".pdf":
+                pdf_type = self.detect_pdf_type(current_doc_path)
+                if pdf_type == "native":
+                    return {"tool": "pymupdf", "reasoning": "Fallback: native PDF", "parameters": doc_params}
             return {"tool": "tesseract", "reasoning": "Fallback: ocr", "parameters": img_params}
         elif "table" in request_lower:
             return {"tool": "unstructured_io", "reasoning": "Fallback: table", "parameters": doc_params}
@@ -312,7 +421,7 @@ Respond in JSON format:
             if isinstance(response_text, dict):
                 # Clean and friendly formatting based on tool used (avoiding raw JSON)
                 tool_used = result.get("tool_used")
-                if tool_used == "tesseract":
+                if tool_used in ["tesseract", "pymupdf"]:
                     response_text = response_text.get("text", "No text extracted.")
                 elif tool_used == "gemma":
                     response_text = response_text.get("interpretation", "No interpretation generated.")

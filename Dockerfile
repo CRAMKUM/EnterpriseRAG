@@ -4,7 +4,7 @@
 # ================================================================================
 
 # Define build argument for base image (allows override)
-ARG BASE_IMAGE=python:3.10-slim
+ARG BASE_IMAGE=python:3.10-slim-bullseye
 FROM ${BASE_IMAGE} AS base
 
 # Set working directory
@@ -16,7 +16,7 @@ ENV PYTHONPATH=/app
 
 # Install system dependencies for OpenCV, Tesseract, PDF processing, and ELF pre-processing
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    prelink \
+    execstack \
     tesseract-ocr \
     tesseract-ocr-eng \
     libgl1 \

@@ -112,7 +112,16 @@ class SpannerGraphManager:
                     count += 1
                 return count
 
-            inserted = self.database.run_in_transaction(insert_batch)
+            try:
+                inserted = self.database.run_in_transaction(insert_batch)
+            except Exception as ex:
+                if "Table not found" in str(ex):
+                    logger.info("Entity table not found, creating schema...")
+                    self.create_schema()
+                    inserted = self.database.run_in_transaction(insert_batch)
+                else:
+                    raise
+
             logger.info(f"Inserted {inserted} entities")
             return inserted
         except Exception as e:
@@ -152,7 +161,16 @@ class SpannerGraphManager:
                     count += 1
                 return count
 
-            inserted = self.database.run_in_transaction(insert_batch)
+            try:
+                inserted = self.database.run_in_transaction(insert_batch)
+            except Exception as ex:
+                if "Table not found" in str(ex):
+                    logger.info("Relationship table not found, creating schema...")
+                    self.create_schema()
+                    inserted = self.database.run_in_transaction(insert_batch)
+                else:
+                    raise
+
             logger.info(f"Inserted {inserted} relationships")
             return inserted
         except Exception as e:
@@ -295,6 +313,14 @@ class SpannerGraphManager:
                 "success": True
             }
         except Exception as e:
+            if "Table not found" in str(e):
+                logger.info("Spanner tables not found yet (will be created on first upload)")
+                return {
+                    "total_entities": 0,
+                    "total_relationships": 0,
+                    "entity_types": [],
+                    "success": True
+                }
             logger.error(f"Failed to get graph statistics: {e}")
             return {"success": False, "error": str(e)}
 

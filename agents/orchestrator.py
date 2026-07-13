@@ -146,32 +146,51 @@ class Orchestrator:
                         if name not in valid_params:
                             current_doc_path = context.get("current_document_path") if isinstance(context, dict) else None
                             
-                            # Self-Healing: if local path is missing (container restarted/scaled down), pull file back from GCS!
-                            from pathlib import Path
-                            if not current_doc_path or not Path(current_doc_path).exists():
-                                doc_name = context.get("current_document") if isinstance(context, dict) else None
-                                self.logger.info(f"DEBUG: self-healing check current_doc_path={current_doc_path} doc_name={doc_name}")
+                            # Clean/resolve fallback path starting with user's augmented lookup logic
+                            if not current_doc_path:
+                                doc_name = None
+                                if isinstance(context, dict):
+                                    doc_name = (
+                                        context.get("current_document")
+                                        or context.get("file_path")
+                                        or context.get("uploaded_file")
+                                    )
+
                                 if doc_name:
-                                    try:
-                                        from google.cloud import storage
-                                        bucket_name = self.config_loader.get_bucket_config().get("bucket_name")
+                                    from pathlib import Path
+                                    doc_path = Path(doc_name)
+
+                                    if doc_path.exists():
+                                        current_doc_path = str(doc_path)
+                                    else:
                                         temp_dir = Path("/tmp/enterprise_rag")
                                         temp_dir.mkdir(exist_ok=True)
-                                        local_path = temp_dir / doc_name
-                                        self.logger.info(f"DEBUG: local_path={local_path} exists={local_path.exists()}")
-                                        if not local_path.exists():
-                                            self.logger.info(f"Auto-Healing: Downloading {doc_name} from GCS back to local container cache...")
-                                            storage_client = storage.Client()
-                                            bucket = storage_client.bucket(bucket_name)
-                                            blob = bucket.blob(f"uploads/{doc_name}")
-                                            blob.download_to_filename(str(local_path))
-                                        current_doc_path = str(local_path)
-                                    except Exception as dl_err:
-                                        self.logger.error(f"Auto-Healing: GCS download failed: {dl_err}")
+                                        local_path = temp_dir / doc_path.name
 
-                            if current_doc_path:
-                                valid_params[name] = current_doc_path
-                                self.logger.info(f"Fallback: automatically supplied {name}={current_doc_path} for {tool_name}")
+                                        if local_path.exists():
+                                            current_doc_path = str(local_path)
+                                        else:
+                                            # Self-Healing: pull file from GCS uploads backup on-the-fly!
+                                            try:
+                                                from google.cloud import storage
+                                                bucket_name = self.config_loader.get_bucket_config().get("bucket_name")
+                                                self.logger.info(f"Auto-Healing: Downloading {doc_path.name} from GCS back to local container cache...")
+                                                storage_client = storage.Client()
+                                                bucket = storage_client.bucket(bucket_name)
+                                                blob = bucket.blob(f"uploads/{doc_path.name}")
+                                                blob.download_to_filename(str(local_path))
+                                                current_doc_path = str(local_path)
+                                            except Exception as dl_err:
+                                                self.logger.error(f"Auto-Healing: GCS download failed: {dl_err}")
+
+                            # Ultimate safety validation
+                            if not current_doc_path:
+                                raise ToolExecutionError(
+                                    f"Missing required parameter '{name}' and no valid document found"
+                                )
+
+                            valid_params[name] = current_doc_path
+                            self.logger.info(f"Fallback: automatically supplied {name}={current_doc_path} for {tool_name}")
 
                 self.logger.info(f"DEBUG: final valid_params={valid_params}")
                 result = tool.execute(**valid_params)

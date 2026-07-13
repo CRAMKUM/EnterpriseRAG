@@ -12,6 +12,7 @@ WORKDIR /app
 
 # Prevent Python from buffering stdout/stderr
 ENV PYTHONUNBUFFERED=True
+ENV PYTHONPATH=/app
 
 # Install system dependencies for OpenCV, Tesseract, PDF processing
 RUN apt-get update && apt-get install -y --no-install-recommends \

@@ -3,8 +3,12 @@ Event Handler for GCS Upload Events
 Processes CloudEvents from Eventarc when files are uploaded to the bucket
 """
 
-import json
+import sys
 import os
+# Inject parent directory into sys.path to enable root package imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+import json
 from pathlib import Path
 from typing import Dict, Any
 

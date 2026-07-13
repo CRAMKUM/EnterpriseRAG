@@ -3,6 +3,11 @@ Enterprise RAG - Streamlit Frontend
 Main application with persistent session management in GCS
 """
 
+import sys
+import os
+# Inject parent directory into sys.path to enable root package imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 import streamlit as st
 
 # Page config MUST be first Streamlit command

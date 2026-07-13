@@ -233,6 +233,9 @@ def handle_file_upload(uploaded_file, components):
     with open(temp_file, "wb") as f:
         f.write(uploaded_file.getbuffer())
 
+    # Save absolute path to session state so tools can access it
+    st.session_state.current_document_path = str(temp_file)
+
     try:
         update_progress("Parsing document structure...", 1)
         result = components["doc_processor"].process_document(str(temp_file))
@@ -265,8 +268,8 @@ def handle_file_upload(uploaded_file, components):
         st.error(f"Processing failed: {e}")
         st.session_state.mmkg_status = "idle"
     finally:
-        if temp_file.exists():
-            temp_file.unlink()
+        # Keep the file on disk so manual tools (like Tesseract and Unstructured) can run on it later
+        pass
 
 def update_progress(stage: str, progress: int):
     st.session_state.processing_status = {

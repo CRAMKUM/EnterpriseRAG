@@ -68,10 +68,15 @@ class ChatInterface:
     def _process_query(self, prompt: str, tool_placeholder) -> dict:
         """Process query using orchestrator."""
         try:
-            context = self._build_context()
+            conversation_history = self._build_context()
+            current_doc_path = st.session_state.get("current_document_path")
+
             result = self.orchestrator.process_query(
                 query=prompt,
-                context=context,
+                context={
+                    "conversation_context": conversation_history,
+                    "current_document_path": current_doc_path
+                },
                 mmkg_available=(st.session_state.mmkg_status == "ready")
             )
 

@@ -140,6 +140,14 @@ class Orchestrator:
     def _build_routing_prompt(self, user_request: str, context: Optional[Dict[str, Any]] = None) -> str:
         """Build prompt for routing decision."""
         context_str = json.dumps(context, indent=2) if context else "None"
+        current_doc_path = context.get("current_document_path") if isinstance(context, dict) else None
+
+        doc_path_hint = ""
+        if current_doc_path:
+            doc_path_hint = f"\n\nCRITICAL DIRECTIVE: An active document is currently uploaded at '{current_doc_path}'. " \
+                            f"If the selected tool requires a path (e.g. 'image_path' for 'tesseract'/'opencv'/'gemma', " \
+                            f"or 'document_path' for 'unstructured_io'), you MUST supply '{current_doc_path}' as that parameter's exact value."
+
         return f"""Analyze this user request and route it to the most appropriate tool.
 
 Available tools:
@@ -150,7 +158,7 @@ Available tools:
 5. **graph_rag** - Answer complex questions using knowledge graph (HIGH cost)
 
 User Request: {user_request}
-Context: {context_str}
+Context: {context_str}{doc_path_hint}
 
 Respond in JSON format:
 {{
@@ -180,16 +188,22 @@ Respond in JSON format:
     def _fallback_routing(self, user_request: str, context: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         """Fallback keyword-based routing logic."""
         request_lower = user_request.lower()
+        current_doc_path = context.get("current_document_path") if isinstance(context, dict) else None
+
+        # Build fallback params
+        img_params = {"image_path": current_doc_path} if current_doc_path else {}
+        doc_params = {"document_path": current_doc_path} if current_doc_path else {}
+
         if "deblur" in request_lower or "blur" in request_lower:
-            return {"tool": "opencv", "reasoning": "Fallback: blur", "parameters": context or {}}
+            return {"tool": "opencv", "reasoning": "Fallback: blur", "parameters": img_params}
         elif "extract text" in request_lower or "ocr" in request_lower:
-            return {"tool": "tesseract", "reasoning": "Fallback: ocr", "parameters": context or {}}
+            return {"tool": "tesseract", "reasoning": "Fallback: ocr", "parameters": img_params}
         elif "table" in request_lower:
-            return {"tool": "unstructured_io", "reasoning": "Fallback: table", "parameters": context or {}}
+            return {"tool": "unstructured_io", "reasoning": "Fallback: table", "parameters": doc_params}
         elif "image" in request_lower or "picture" in request_lower:
-            return {"tool": "gemma", "reasoning": "Fallback: image", "parameters": context or {}}
+            return {"tool": "gemma", "reasoning": "Fallback: image", "parameters": img_params}
         else:
-            return {"tool": "graph_rag", "reasoning": "Fallback: default to Graph RAG", "parameters": context or {}}
+            return {"tool": "graph_rag", "reasoning": "Fallback: default to Graph RAG", "parameters": {"question": user_request}}
 
     def _execute_graph_rag(self, query: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
         """Placeholder for Graph RAG execution."""

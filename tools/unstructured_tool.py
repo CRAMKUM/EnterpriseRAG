@@ -41,7 +41,7 @@ class UnstructuredTool(BaseTool):
                 filename=str(document_path),
                 strategy=strategy,
                 include_page_breaks=include_page_breaks,
-                infer_table_structure=infer_table_structure if extract_tables else False,
+                pdf_infer_table_structure=infer_table_structure if extract_tables else False,
                 extract_images_in_pdf=extract_images,
             )
 

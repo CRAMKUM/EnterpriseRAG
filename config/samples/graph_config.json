@@ -2,7 +2,7 @@
     "project_id": "project-0f2740f8-acd1-43a1-a04",
     "location": "europe-west4",
     "bucket_name": "enterprise-rag-storage-avathon",
-    "instance_id": "enterprise-rag-instance",
+    "instance_id": "enterprise-graph-rag-spanner",
     "database_id": "mmkg-database",
     "spanner_config": {
         "min_sessions": 10,

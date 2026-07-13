@@ -113,7 +113,16 @@ class Orchestrator:
                 return self._execute_graph_rag(user_request, parameters)
             elif tool_name in self.tools:
                 tool = self.tools[tool_name]
-                result = tool.execute(**parameters)
+
+                # Dynamically filter parameters to only pass those accepted by the tool's execute method
+                import inspect
+                sig = inspect.signature(tool.execute)
+                valid_params = {
+                    k: v for k, v in parameters.items()
+                    if k in sig.parameters or any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values())
+                }
+
+                result = tool.execute(**valid_params)
 
                 return {
                     "tool_used": tool_name,

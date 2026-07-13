@@ -28,10 +28,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
+# Pre-install heavy stable machine learning & ONNX libraries to utilize Docker layer caching
+# This ensures that any changes to requirements.txt do NOT trigger a slow 5-minute re-download of ML packages
+RUN pip install --no-cache-dir \
+    torch==2.13.0 \
+    torchvision==0.28.0 \
+    onnxruntime==1.15.1 \
+    onnx==1.22.0
+
 # Copy requirements.txt first for docker layer caching
 COPY requirements.txt /app/
 
-# Install Python dependencies from public PyPI
+# Install the remaining Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the ELF binary segment clearing script into the base container

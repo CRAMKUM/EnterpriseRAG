@@ -114,6 +114,20 @@ class Orchestrator:
             elif tool_name in self.tools:
                 tool = self.tools[tool_name]
 
+                # Normalize parameter names to match tool signatures (e.g. map file_path or path to document_path/image_path)
+                path_keys = ["document_path", "image_path", "file_path", "path", "file", "doc_path"]
+                provided_path = None
+                for pk in path_keys:
+                    if pk in parameters:
+                        provided_path = parameters[pk]
+                        break
+
+                if provided_path:
+                    if tool_name == "unstructured_io":
+                        parameters["document_path"] = provided_path
+                    else:
+                        parameters["image_path"] = provided_path
+
                 # Dynamically filter parameters to only pass those accepted by the tool's execute method
                 import inspect
                 sig = inspect.signature(tool.execute)
@@ -121,6 +135,15 @@ class Orchestrator:
                     k: v for k, v in parameters.items()
                     if k in sig.parameters or any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values())
                 }
+
+                # Fallback: if a required positional argument is still missing, supply current_document_path!
+                for name, param in sig.parameters.items():
+                    if param.default == inspect.Parameter.empty and param.kind in [inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.POSITIONAL_ONLY]:
+                        if name not in valid_params:
+                            current_doc_path = context.get("current_document_path") if isinstance(context, dict) else None
+                            if current_doc_path:
+                                valid_params[name] = current_doc_path
+                                self.logger.info(f"Fallback: automatically supplied {name}={current_doc_path} for {tool_name}")
 
                 result = tool.execute(**valid_params)
 

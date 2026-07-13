@@ -1,0 +1,40 @@
+{
+  "opencv": {
+    "deblur_method": "wiener",
+    "kernel_size": 5,
+    "sigma": 1.0,
+    "blur_threshold": 100,
+    "supported_formats": ["jpg", "jpeg", "png", "bmp", "tiff"]
+  },
+  "tesseract": {
+    "lang": "eng",
+    "psm": 3,
+    "oem": 3,
+    "config": "--psm 3 --oem 3",
+    "timeout": 30
+  },
+  "unstructured_io": {
+    "strategy": "hi_res",
+    "include_page_breaks": true,
+    "extract_tables": true,
+    "infer_table_structure": true,
+    "extract_images": true,
+    "chunk_elements": false
+  },
+  "gemma": {
+    "endpoint": "vertex-ai",
+    "project_id": "prj-7d62-iiexo-dev-ea60",
+    "location": "europe-west4",
+    "model_name": "gemini-2-27b-it",
+    "max_retries": 3,
+    "timeout": 60,
+    "max_image_size_mb": 10,
+    "supported_formats": ["jpg", "jpeg", "png", "webp", "gif"]
+  },
+  "hybrid_search": {
+    "vector_weight": 0.5,
+    "graph_weight": 0.5,
+    "top_k": 10,
+    "min_similarity": 0.7
+  }
+}

@@ -1,0 +1,9 @@
+{
+    "deblur_request": "Deblur the image located at: {image_path}",
+    "text_extraction": "Extract all text from the document: {document_path}",
+    "table_extraction": "Extract all tables from the document: {document_path}. Preserve structure.",
+    "image_interpretation": "Analyze and describe this image in detail: {image_path}.",
+    "entity_extraction": "Extract entities and relationships from the following content:\n\n{content}\n\nSource: {source_path}\nPage: {page_number}",
+    "graph_query": "Based on the knowledge graph, answer this question:\n\n{question}",
+    "gql_conversion": "Convert this natural language question to a GQL query:\n\nQuestion: {question}\n\nSchema:\n{schema}"
+}

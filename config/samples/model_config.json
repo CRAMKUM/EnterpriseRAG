@@ -1,0 +1,30 @@
+{
+  "orchestrator": {
+    "name": "gemini-3.1-flash",
+    "temperature": 0.7,
+    "max_tokens": 2048,
+    "top_p": 0.95
+  },
+  "vlm": {
+    "name": "gemini-3.1-flash",
+    "temperature": 0.5,
+    "max_tokens": 1024,
+    "top_p": 0.9
+  },
+  "entity_extractor": {
+    "name": "gemini-3.1-flash",
+    "temperature": 0.3,
+    "max_tokens": 2048,
+    "top_p": 0.9
+  },
+  "small_vlm": {
+    "name": "gemini-2-27b-it",
+    "model_name": "gemini-2-27b-it",
+    "temperature": 0.5,
+    "max_tokens": 1024
+  },
+  "embedding": {
+    "name": "text-embedding-004",
+    "dimensions": 768
+  }
+}

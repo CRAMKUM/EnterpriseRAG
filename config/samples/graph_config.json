@@ -1,0 +1,48 @@
+{
+    "project_id": "prj-7d62-iiexo-dev-ea60",
+    "location": "europe-west4",
+    "bucket_name": "model-library-enterprise-rag",
+    "instance_id": "enterprise-rag-instance",
+    "database_id": "mmkg-database",
+    "spanner_config": {
+        "min_sessions": 10,
+        "max_sessions": 100,
+        "pool_size": 10
+    },
+    "graph_schema": {
+        "node_types": [
+            "person",
+            "organization",
+            "date",
+            "location",
+            "product_or_service",
+            "technology",
+            "metric_or_measurement",
+            "document_reference",
+            "concept",
+            "event",
+            "table",
+            "chart",
+            "diagram"
+        ],
+        "relationship_types": [
+            "works_for",
+            "located_in",
+            "occurred_on",
+            "references",
+            "related_to",
+            "part_of",
+            "uses",
+            "mentions",
+            "contains",
+            "appears_in_image",
+            "shown_in_table",
+            "depicted_in_chart"
+        ]
+    },
+    "query_config": {
+        "default_limit": 100,
+        "max_depth": 3,
+        "timeout_seconds": 30
+    }
+}

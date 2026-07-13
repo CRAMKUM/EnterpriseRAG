@@ -1,0 +1,7 @@
+{
+    "upload_folder": "uploads/",
+    "config_folder": "config/",
+    "processed_folder": "processed/",
+    "sessions_folder": "sessions/",
+    "temp_folder": "temp/"
+}

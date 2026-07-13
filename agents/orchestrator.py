@@ -137,6 +137,10 @@ class Orchestrator:
                 }
 
                 # Fallback: if a required positional argument is still missing, supply current_document_path!
+                self.logger.info(f"DEBUG: tool_name={tool_name} parameters={parameters}")
+                self.logger.info(f"DEBUG: context={context} isinstance={isinstance(context, dict)}")
+                self.logger.info(f"DEBUG: valid_params before fallback={valid_params}")
+
                 for name, param in sig.parameters.items():
                     if param.default == inspect.Parameter.empty and param.kind in [inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.POSITIONAL_ONLY]:
                         if name not in valid_params:
@@ -146,6 +150,7 @@ class Orchestrator:
                             from pathlib import Path
                             if not current_doc_path or not Path(current_doc_path).exists():
                                 doc_name = context.get("current_document") if isinstance(context, dict) else None
+                                self.logger.info(f"DEBUG: self-healing check current_doc_path={current_doc_path} doc_name={doc_name}")
                                 if doc_name:
                                     try:
                                         from google.cloud import storage
@@ -153,6 +158,7 @@ class Orchestrator:
                                         temp_dir = Path("/tmp/enterprise_rag")
                                         temp_dir.mkdir(exist_ok=True)
                                         local_path = temp_dir / doc_name
+                                        self.logger.info(f"DEBUG: local_path={local_path} exists={local_path.exists()}")
                                         if not local_path.exists():
                                             self.logger.info(f"Auto-Healing: Downloading {doc_name} from GCS back to local container cache...")
                                             storage_client = storage.Client()
@@ -167,6 +173,7 @@ class Orchestrator:
                                 valid_params[name] = current_doc_path
                                 self.logger.info(f"Fallback: automatically supplied {name}={current_doc_path} for {tool_name}")
 
+                self.logger.info(f"DEBUG: final valid_params={valid_params}")
                 result = tool.execute(**valid_params)
 
                 return {

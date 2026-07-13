@@ -14,8 +14,9 @@ WORKDIR /app
 ENV PYTHONUNBUFFERED=True
 ENV PYTHONPATH=/app
 
-# Install system dependencies for OpenCV, Tesseract, PDF processing
+# Install system dependencies for OpenCV, Tesseract, PDF processing, and ELF pre-processing
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    execstack \
     tesseract-ocr \
     tesseract-ocr-eng \
     libgl1 \
@@ -33,6 +34,9 @@ COPY requirements.txt /app/
 
 # Install Python dependencies from public PyPI
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Clear ONNX executable stack segment requirement for gVisor compatibility
+RUN execstack -c /usr/local/lib/python3.10/site-packages/onnxruntime/capi/onnxruntime_pybind11_state.cpython-*.so || true
 
 # Create necessary directories with proper structure
 RUN mkdir -p /app/data /app/logs /app/temp /app/.streamlit

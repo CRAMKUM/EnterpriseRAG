@@ -169,8 +169,11 @@ class Orchestrator:
             if file_path:
                 suffix = Path(file_path).suffix.lower()
                 if suffix == ".pdf":
-                    # Determine target based on text-extraction request
-                    is_text_extraction_query = any(k in user_request.lower() for k in ["text", "read", "extract", "summarize", "summary"])
+                    # Determine target based on text-extraction request (excluding structured table/figure queries)
+                    is_text_extraction_query = (
+                        any(k in user_request.lower() for k in ["text", "read", "summarize", "summary"])
+                        or ("extract" in user_request.lower() and "table" not in user_request.lower() and "figure" not in user_request.lower() and "image" not in user_request.lower())
+                    )
                     if is_text_extraction_query:
                         if pdf_type == "native" and tool_name != "pymupdf":
                             self.logger.info("Enforcing deterministic tool selection: native PDF -> pymupdf")

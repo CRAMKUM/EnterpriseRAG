@@ -25,13 +25,29 @@ class TesseractTool(BaseTool):
         lang: Optional[str] = None,
         psm: Optional[int] = None
     ) -> Dict[str, Any]:
-        """Extract text from image using Tesseract OCR."""
+        """Extract text from image or PDF using Tesseract OCR."""
         try:
             self.logger.info(f"Extracting text from: {image_path}")
 
             image_path = Path(image_path)
             if not image_path.exists():
                 raise FileNotFoundError(f"Image not found: {image_path}")
+
+            # Handle PDFs correctly
+            if image_path.suffix.lower() == ".pdf":
+                pdf_result = self.extract_from_pdf(str(image_path))
+                
+                # Consolidate PDF text for a unified response
+                pdf_text = ""
+                for page, data in sorted(pdf_result.get("pages", {}).items()):
+                    pdf_text += f"\n--- Page {page} ---\n{data.get('text', '')}"
+                
+                return {
+                    "text": pdf_text.strip(),
+                    "pdf_result": pdf_result,
+                    "image_path": str(image_path),
+                    "success": True
+                }
 
             # Load image
             image = Image.open(image_path)

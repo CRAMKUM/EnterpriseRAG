@@ -132,9 +132,11 @@ class Orchestrator:
 
                 if provided_path:
                     if tool_name == "unstructured_io":
-                        parameters["document_path"] = provided_path
+                        if "document_path" not in parameters:
+                            parameters["document_path"] = provided_path
                     else:
-                        parameters["image_path"] = provided_path
+                        if "image_path" not in parameters:
+                            parameters["image_path"] = provided_path
 
                 # Dynamically filter parameters to only pass those accepted by the tool's execute method
                 import inspect

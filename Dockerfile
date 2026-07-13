@@ -4,7 +4,7 @@
 # ================================================================================
 
 # Define build argument for base image (allows override)
-ARG BASE_IMAGE=python:3.10-slim-bullseye
+ARG BASE_IMAGE=python:3.10-slim
 FROM ${BASE_IMAGE} AS base
 
 # Set working directory
@@ -14,9 +14,8 @@ WORKDIR /app
 ENV PYTHONUNBUFFERED=True
 ENV PYTHONPATH=/app
 
-# Install system dependencies for OpenCV, Tesseract, PDF processing, and ELF pre-processing
+# Install system dependencies for OpenCV, Tesseract, PDF processing
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    execstack \
     tesseract-ocr \
     tesseract-ocr-eng \
     libgl1 \
@@ -35,8 +34,11 @@ COPY requirements.txt /app/
 # Install Python dependencies from public PyPI
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Clear ONNX executable stack segment requirement for gVisor compatibility
-RUN execstack -c /usr/local/lib/python3.10/site-packages/onnxruntime/capi/onnxruntime_pybind11_state.cpython-*.so || true
+# Copy the ELF binary segment clearing script into the base container
+COPY clear_stack.py /app/
+
+# Execute zero-dependency Python ELF stack modifier to clear ONNX stack execution flags (gVisor fix)
+RUN python3 clear_stack.py
 
 # Create necessary directories with proper structure
 RUN mkdir -p /app/data /app/logs /app/temp /app/.streamlit

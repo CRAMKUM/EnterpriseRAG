@@ -23,7 +23,7 @@
   },
   "gemma": {
     "endpoint": "vertex-ai",
-    "project_id": "prj-7d62-iiexo-dev-ea60",
+    "project_id": "project-0f2740f8-acd1-43a1-a04",
     "location": "europe-west4",
     "model_name": "gemini-2-27b-it",
     "max_retries": 3,

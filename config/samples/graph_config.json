@@ -1,7 +1,7 @@
 {
-    "project_id": "prj-7d62-iiexo-dev-ea60",
+    "project_id": "project-0f2740f8-acd1-43a1-a04",
     "location": "europe-west4",
-    "bucket_name": "model-library-enterprise-rag",
+    "bucket_name": "enterprise-rag-storage-avathon",
     "instance_id": "enterprise-rag-instance",
     "database_id": "mmkg-database",
     "spanner_config": {

@@ -30,16 +30,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy requirements.txt first for docker layer caching
 COPY requirements.txt /app/
 
-# Copy Airbus CA certificate for corporate Artifactory access
-COPY airbus-ca.pem /etc/ssl/certs/airbus-ca.pem
-
-# Configure pip to use Airbus Artifactory
-RUN mkdir -p /root/.config/pip && \
-    echo "[global]\n\
-index-url = https://artifactory.2b82.aws.cloud.airbus.corp/artifactory/api/pypi/pypi/simple\n\
-cert = /etc/ssl/certs/airbus-ca.pem" > /root/.config/pip/pip.conf
-
-# Install Python dependencies
+# Install Python dependencies from public PyPI
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Create necessary directories with proper structure
@@ -63,8 +54,8 @@ EXPOSE 8080
 
 # Environment Variables
 ENV GOOGLE_GENAI_USE_VERTEXAI="True"
-ENV GOOGLE_CLOUD_LOCATION="us-central1"
-ENV GOOGLE_CLOUD_PROJECT=""
+ENV GOOGLE_CLOUD_LOCATION="europe-west4"
+ENV GOOGLE_CLOUD_PROJECT="project-0f2740f8-acd1-43a1-a04"
 
 ENV STREAMLIT_SERVER_PORT=8080
 ENV STREAMLIT_SERVER_ADDRESS=0.0.0.0
@@ -72,7 +63,7 @@ ENV STREAMLIT_SERVER_ENABLE_CORS=false
 ENV STREAMLIT_SERVER_ENABLE_XSRF_PROTECTION=true
 ENV STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
 ENV COOKIE_PASSWORD="enterprise_rag_secure_key_2026_v1"
-ENV CONFIG_BUCKET_NAME=""
+ENV CONFIG_BUCKET_NAME="enterprise-rag-storage-avathon"
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:8080/_stcore/health || exit 1

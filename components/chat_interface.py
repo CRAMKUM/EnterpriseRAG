@@ -75,7 +75,8 @@ class ChatInterface:
                 query=prompt,
                 context={
                     "conversation_context": conversation_history,
-                    "current_document_path": current_doc_path
+                    "current_document_path": current_doc_path,
+                    "current_document": st.session_state.get("current_document")
                 },
                 mmkg_available=(st.session_state.mmkg_status == "ready")
             )

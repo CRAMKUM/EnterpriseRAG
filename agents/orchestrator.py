@@ -141,6 +141,28 @@ class Orchestrator:
                     if param.default == inspect.Parameter.empty and param.kind in [inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.POSITIONAL_ONLY]:
                         if name not in valid_params:
                             current_doc_path = context.get("current_document_path") if isinstance(context, dict) else None
+                            
+                            # Self-Healing: if local path is missing (container restarted/scaled down), pull file back from GCS!
+                            from pathlib import Path
+                            if not current_doc_path or not Path(current_doc_path).exists():
+                                doc_name = context.get("current_document") if isinstance(context, dict) else None
+                                if doc_name:
+                                    try:
+                                        from google.cloud import storage
+                                        bucket_name = self.config_loader.get_bucket_config().get("bucket_name")
+                                        temp_dir = Path("/tmp/enterprise_rag")
+                                        temp_dir.mkdir(exist_ok=True)
+                                        local_path = temp_dir / doc_name
+                                        if not local_path.exists():
+                                            self.logger.info(f"Auto-Healing: Downloading {doc_name} from GCS back to local container cache...")
+                                            storage_client = storage.Client()
+                                            bucket = storage_client.bucket(bucket_name)
+                                            blob = bucket.blob(f"uploads/{doc_name}")
+                                            blob.download_to_filename(str(local_path))
+                                        current_doc_path = str(local_path)
+                                    except Exception as dl_err:
+                                        self.logger.error(f"Auto-Healing: GCS download failed: {dl_err}")
+
                             if current_doc_path:
                                 valid_params[name] = current_doc_path
                                 self.logger.info(f"Fallback: automatically supplied {name}={current_doc_path} for {tool_name}")

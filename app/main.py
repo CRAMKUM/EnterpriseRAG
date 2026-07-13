@@ -268,6 +268,19 @@ def handle_file_upload(uploaded_file, components):
     # Save absolute path to session state so tools can access it
     st.session_state.current_document_path = str(temp_file)
 
+    # Upload to GCS so it is persistent and accessible across container scale-ups/restarts
+    try:
+        from google.cloud import storage
+        bucket_name = components["bucket_config"].get("bucket_name")
+        gcs_path = f"uploads/{uploaded_file.name}"
+        storage_client = storage.Client()
+        bucket = storage_client.bucket(bucket_name)
+        blob = bucket.blob(gcs_path)
+        blob.upload_from_filename(str(temp_file))
+        logger.info(f"Uploaded {uploaded_file.name} to gs://{bucket_name}/{gcs_path}")
+    except Exception as ge:
+        logger.error(f"GCS upload failed: {ge}")
+
     session_id = st.session_state.session_id
     user_id = st.session_state.user_id
 

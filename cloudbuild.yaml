@@ -1,13 +1,26 @@
 steps:
-  # Build the container image
+  # 1. Pull the previous build to use as a cache source
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/$PROJECT_ID/enterprise-rag:latest', '.']
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        docker pull europe-west4-docker.pkg.dev/project-0f2740f8-acd1-43a1-a04/enterprise-graph-rag-repo/enterprise-rag:latest || true
 
-  # Push the container image to Container Registry
+  # 2. Build the container image using the cache
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/$PROJECT_ID/enterprise-rag:latest']
+    args: [
+      'build',
+      '--cache-from', 'europe-west4-docker.pkg.dev/project-0f2740f8-acd1-43a1-a04/enterprise-graph-rag-repo/enterprise-rag:latest',
+      '-t', 'europe-west4-docker.pkg.dev/project-0f2740f8-acd1-43a1-a04/enterprise-graph-rag-repo/enterprise-rag:latest',
+      '.'
+    ]
 
-  # Deploy container image to Cloud Run
+  # 3. Push the compiled image to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'europe-west4-docker.pkg.dev/project-0f2740f8-acd1-43a1-a04/enterprise-graph-rag-repo/enterprise-rag:latest']
+
+  # 4. Deploy the Streamlit application to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args:
@@ -15,14 +28,14 @@ steps:
       - 'deploy'
       - 'enterprise-rag'
       - '--image'
-      - 'gcr.io/$PROJECT_ID/enterprise-rag:latest'
+      - 'europe-west4-docker.pkg.dev/project-0f2740f8-acd1-43a1-a04/enterprise-graph-rag-repo/enterprise-rag:latest'
       - '--region'
       - 'europe-west4'
       - '--platform'
       - 'managed'
       - '--allow-unauthenticated'
       - '--set-env-vars'
-      - 'CONFIG_BUCKET_NAME=model-library-enterprise-rag,GOOGLE_CLOUD_PROJECT=$PROJECT_ID'
+      - 'CONFIG_BUCKET_NAME=enterprise-rag-storage-avathon,GOOGLE_CLOUD_PROJECT=project-0f2740f8-acd1-43a1-a04'
 
 images:
-  - 'gcr.io/$PROJECT_ID/enterprise-rag:latest'
+  - 'europe-west4-docker.pkg.dev/project-0f2740f8-acd1-43a1-a04/enterprise-graph-rag-repo/enterprise-rag:latest'

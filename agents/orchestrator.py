@@ -6,8 +6,14 @@ from utils.logger import get_logger
 from utils.exceptions import ToolExecutionError
 from config.config_loader import get_config_loader
 from tools import OpenCVTool, TesseractTool, UnstructuredTool, GemmaTool
+from pydantic import BaseModel, Field
 
 logger = get_logger(__name__)
+
+class RoutingDecision(BaseModel):
+    tool: str = Field(description="Name of the tool to use. One of: 'opencv', 'tesseract', 'unstructured_io', 'gemma', 'graph_rag'")
+    reasoning: str = Field(description="Explanation of why this tool was chosen.")
+    parameters: Dict[str, str] = Field(default_factory=dict, description="Keyword arguments to pass to the tool's execute() method (such as 'image_path' or 'document_path').")
 
 class Orchestrator:
     """
@@ -88,6 +94,8 @@ class Orchestrator:
                     system_instruction=system_instruction,
                     temperature=self.model_config.get("temperature", 0.7),
                     max_output_tokens=1024,
+                    response_mime_type="application/json",
+                    response_schema=RoutingDecision
                 )
             )
 
@@ -240,20 +248,11 @@ Respond in JSON format:
 """
 
     def _parse_routing_response(self, response_text: str) -> Dict[str, Any]:
-        """Parse Gemini's routing response."""
+        """Parse Gemini's Pydantic routing response."""
         try:
-            start_idx = response_text.find('{')
-            end_idx = response_text.rfind('}') + 1
-            if start_idx == -1 or end_idx == 0:
-                raise ValueError("No JSON found")
-
-            json_str = response_text[start_idx:end_idx]
-            routing = json.loads(json_str)
-            if "tool" not in routing:
-                raise ValueError("Missing 'tool' field")
-            return routing
+            return json.loads(response_text)
         except Exception as e:
-            self.logger.error(f"Failed to parse routing response: {e}")
+            self.logger.error(f"Failed to parse Pydantic routing response: {e}")
             raise
 
     def _fallback_routing(self, user_request: str, context: Optional[Dict[str, Any]]) -> Dict[str, Any]:
@@ -309,7 +308,29 @@ Respond in JSON format:
 
             response_text = result.get("result", {})
             if isinstance(response_text, dict):
-                response_text = response_text.get("message", json.dumps(response_text, indent=2))
+                # Clean and friendly formatting based on tool used (avoiding raw JSON)
+                tool_used = result.get("tool_used")
+                if tool_used == "tesseract":
+                    response_text = response_text.get("text", "No text extracted.")
+                elif tool_used == "gemma":
+                    response_text = response_text.get("interpretation", "No interpretation generated.")
+                elif tool_used == "opencv":
+                    was_deblurred = response_text.get("was_deblurred", False)
+                    deblur_msg = "Image was blurred and successfully deblurred!" if was_deblurred else "Image was already sharp, deblurring skipped."
+                    response_text = f"✨ **OpenCV Deblur Result**\n\n* **Status:** {deblur_msg}\n* **Original Blur Score:** {response_text.get('blur_score', 0.0):.2f}\n* **Saved To:** `{response_text.get('deblurred_path')}`"
+                elif tool_used == "unstructured_io":
+                    tables = response_text.get("tables", [])
+                    if tables:
+                        table_markdowns = []
+                        for idx, tab in enumerate(tables):
+                            table_markdowns.append(f"📊 **Table #{idx+1}**\n{tab.get('text', '')}")
+                        response_text = "\n\n---\n\n".join(table_markdowns)
+                    else:
+                        elements = response_text.get("elements", [])
+                        text_parts = [e.get("text", "") for e in elements if e.get("text")]
+                        response_text = "\n".join(text_parts[:25])  # Show up to 25 elements cleanly
+                else:
+                    response_text = response_text.get("message", json.dumps(response_text, indent=2))
 
             return {
                 "response": str(response_text),

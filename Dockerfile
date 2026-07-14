@@ -16,6 +16,7 @@ ENV PYTHONPATH=/app
 
 # Install system dependencies for OpenCV, Tesseract, PDF processing
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    libmagic-dev \
     tesseract-ocr \
     tesseract-ocr-eng \
     libgl1 \

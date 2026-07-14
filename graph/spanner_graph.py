@@ -88,6 +88,9 @@ class SpannerGraphManager:
 
     def insert_entities(self, entities: List[Dict[str, Any]]) -> int:
         """Insert multiple entities into Spanner."""
+        if not entities:
+            logger.info("No entities to insert, skipping transaction")
+            return 0
         try:
             logger.info(f"Inserting {len(entities)} entities")
 
@@ -131,6 +134,9 @@ class SpannerGraphManager:
 
     def insert_relationships(self, relationships: List[Dict[str, Any]]) -> int:
         """Insert relationships."""
+        if not relationships:
+            logger.info("No relationships to insert, skipping transaction")
+            return 0
         try:
             logger.info(f"Inserting {len(relationships)} relationships")
 
@@ -203,8 +209,9 @@ class SpannerGraphManager:
                     results = snapshot.execute_sql(query)
 
             rows = []
+            field_names = [f.name for f in results.fields]
             for row in results:
-                rows.append(dict(zip(results.fields, row)))
+                rows.append(dict(zip(field_names, row)))
             return rows
         except Exception as e:
             logger.error(f"GQL query execution failed: {e}")

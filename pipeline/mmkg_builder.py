@@ -76,6 +76,17 @@ class MMKGBuilder:
             cross_modal_rels = self._link_cross_modal_entities(unique_entities, processed_pages)
             all_relationships.extend(cross_modal_rels)
 
+            # Map entity names to their unique entity_id to connect graph nodes and edges
+            entity_name_to_id = {e.get("name", "").lower(): e.get("id") for e in unique_entities}
+            for rel in all_relationships:
+                if not rel.get("cross_modal"):
+                    src_name = rel.get("source_entity", "").lower()
+                    tgt_name = rel.get("target_entity", "").lower()
+                    if src_name in entity_name_to_id:
+                        rel["source_entity"] = entity_name_to_id[src_name]
+                    if tgt_name in entity_name_to_id:
+                        rel["target_entity"] = entity_name_to_id[tgt_name]
+
             return {
                 "entities": unique_entities,
                 "relationships": all_relationships,
@@ -241,6 +252,8 @@ Given a document page (Page {page_num}) with text content and associated images/
         seen = {}
         unique_entities = []
         for entity in entities:
+            # Proactively guarantee attributes dictionary is initialized
+            entity.setdefault("attributes", {})
             key = (entity.get("type"), entity.get("name", "").lower())
             if key not in seen:
                 seen[key] = entity

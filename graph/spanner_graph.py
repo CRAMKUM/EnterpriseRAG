@@ -94,7 +94,7 @@ class SpannerGraphManager:
             def insert_batch(transaction):
                 count = 0
                 for entity in entities:
-                    transaction.insert(
+                    transaction.insert_or_update(
                         table="Entity",
                         columns=["entity_id", "entity_type", "name", "description",
                                  "source_page", "confidence", "attributes", "created_at", "updated_at"],
@@ -138,7 +138,7 @@ class SpannerGraphManager:
                 count = 0
                 for rel in relationships:
                     rel_id = f"{rel.get('source_entity')}_{rel.get('target_entity')}_{count}"
-                    transaction.insert(
+                    transaction.insert_or_update(
                         table="Relationship",
                         columns=["relationship_id", "source_entity_id", "target_entity_id",
                                  "relationship_type", "description", "keywords", "strength",

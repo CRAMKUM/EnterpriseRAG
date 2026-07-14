@@ -1,6 +1,7 @@
 """Spanner Graph manager for MMKG operations."""
 
 from typing import Dict, Any, List, Optional
+import json
 from google.cloud import spanner
 from google.cloud.spanner_v1 import param_types
 from utils.logger import get_logger
@@ -104,7 +105,7 @@ class SpannerGraphManager:
                             entity.get("description"),
                             entity.get("source_page"),
                             entity.get("confidence", 0.8),
-                            entity.get("attributes", {}),
+                            json.dumps(entity.get("attributes", {})),
                             spanner.COMMIT_TIMESTAMP,
                             spanner.COMMIT_TIMESTAMP
                         ]]
@@ -153,7 +154,7 @@ class SpannerGraphManager:
                             rel.get("source_page"),
                             rel.get("confidence", 0.8),
                             rel.get("cross_modal", False),
-                            rel.get("attributes", {}),
+                            json.dumps(rel.get("attributes", {})),
                             spanner.COMMIT_TIMESTAMP,
                             spanner.COMMIT_TIMESTAMP
                         ]]

@@ -208,11 +208,15 @@ class SpannerGraphManager:
                 else:
                     results = snapshot.execute_sql(query)
 
-            rows = []
-            field_names = [f.name for f in results.fields]
-            for row in results:
-                rows.append(dict(zip(field_names, row)))
-            return rows
+                rows = []
+                if results.fields:
+                    field_names = [f.name for f in results.fields]
+                    for row in results:
+                        rows.append(dict(zip(field_names, row)))
+                else:
+                    for row in results:
+                        rows.append(row)
+                return rows
         except Exception as e:
             logger.error(f"GQL query execution failed: {e}")
             raise GraphError(f"GQL query failed: {e}")

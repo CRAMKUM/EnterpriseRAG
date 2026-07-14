@@ -104,7 +104,7 @@ class SpannerGraphManager:
                             entity.get("description"),
                             entity.get("source_page"),
                             entity.get("confidence", 0.8),
-                            spanner.Json(entity.get("attributes", {})),
+                            entity.get("attributes", {}),
                             spanner.COMMIT_TIMESTAMP,
                             spanner.COMMIT_TIMESTAMP
                         ]]
@@ -153,7 +153,7 @@ class SpannerGraphManager:
                             rel.get("source_page"),
                             rel.get("confidence", 0.8),
                             rel.get("cross_modal", False),
-                            spanner.Json(rel.get("attributes", {})),
+                            rel.get("attributes", {}),
                             spanner.COMMIT_TIMESTAMP,
                             spanner.COMMIT_TIMESTAMP
                         ]]
